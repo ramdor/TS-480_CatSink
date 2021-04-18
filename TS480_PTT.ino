@@ -1,14 +1,16 @@
 //--------------------------------------------------------
-// MW0LGE - Richard Samphire - 2021
-// Very crude implementation of TS-480 Cat Command Parser
+// MW0LGE - Richard Samphire - 2021 - See LICENSE file
+// Crude implementation of TS-480 Cat Command Parser
 // Used to set a relay state based on TX/RX
-// Other commands handled so that other software plays ball
+// Other commands handled so that connecting software plays ball (such as HRD/flrig/MMSSTV)
 //--------------------------------------------------------
 
 #include <errno.h>
 
 //-
 #define PTT_RELAY_PIN 7
+//-
+#define DEF_FREQ 145000000
 //-
 static char m_buf[256];
 static char m_tmpBuf[64];
@@ -17,9 +19,10 @@ int m_nBufferPos = 0;
 //-
 static char m_vfoReceiver[] = "0";
 static char m_vfoTransmitter[] = "0";
+//-
 bool m_bTxState = false;
-unsigned long m_lFrequencyA = 145000000;
-unsigned long m_lFrequencyB = 145000000;
+unsigned long m_lFrequencyA = DEF_FREQ;
+unsigned long m_lFrequencyB = DEF_FREQ;
 //-
 
 void setTXState()
@@ -49,7 +52,7 @@ void handleMsg()
     m_bTxState = true;
     setTXState();
 
-    sprintf(m_tmpBuf, "TX0;");
+    sprintf(m_tmpBuf, "TX0;");  // NOTE: spec says we should return TX0; as a reply, this causes issues with HAMLIB
 
     bReply = false;
   }
@@ -60,7 +63,7 @@ void handleMsg()
 
     sprintf(m_tmpBuf, "RX0;");
 
-    bReply = false;
+    bReply = false;  // NOTE: spec says we should return RX0; as a reply, this causes issues with HAMLIB
   }
   else if(strcmp(m_tmpBuf, "fa") == 0) // vfo A freq
   {
@@ -71,7 +74,7 @@ void handleMsg()
       freq[11] = 0;
 
       m_lFrequencyA = strtol(freq, NULL, 10);
-      if(errno == ERANGE) m_lFrequencyA = 145000000;
+      if(errno == ERANGE) m_lFrequencyA = DEF_FREQ;
       
       bReply = false;
     }
@@ -86,7 +89,7 @@ void handleMsg()
       freq[11] = 0;
 
       m_lFrequencyB = strtol(freq, NULL, 10);
-      if(errno == ERANGE) m_lFrequencyB = 145000000;
+      if(errno == ERANGE) m_lFrequencyB = DEF_FREQ;
       
       bReply = false;
     }
@@ -98,7 +101,7 @@ void handleMsg()
     //^^ from eesdr
     
     char hz[] = "00000000000";
-    char space[] = "00000"; // "     ";
+    char space[] = "00000"; // "     ";  // note spec says this should be space but other implementions return 0's, so do we
     char ritxit[] = "+0000";
     char ritOn[] = "0";
     char xitOn[] = "0";
@@ -111,7 +114,7 @@ void handleMsg()
     char simplexSplit[] = "0";
     char txtone[] = "0";
     char toneNumber[] = "00";
-    char anotherSpace[] = "0"; // " ";
+    char anotherSpace[] = "0"; // " ";  // note spec says this should be a space but other implementions return 0, so do we
 
     sprintf(hz, "%011lu", m_lFrequencyA);
 
