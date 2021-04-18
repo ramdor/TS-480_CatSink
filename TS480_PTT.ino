@@ -1,23 +1,38 @@
+//--------------------------------------------------------
+// MW0LGE - Richard Samphire - 2021
+// Very crude implementation of TS-480 Cat Command Parser
+// Used to set a relay state based on TX/RX
+// Other commands handled so that other software plays ball
+//--------------------------------------------------------
+
 #include <errno.h>
 
+//-
+#define PTT_RELAY_PIN 7
+//-
 static char m_buf[256];
 static char m_tmpBuf[64];
+//-
 int m_nBufferPos = 0;
+//-
+static char m_vfoReceiver[] = "0";
+static char m_vfoTransmitter[] = "0";
 bool m_bTxState = false;
 unsigned long m_lFrequencyA = 145000000;
 unsigned long m_lFrequencyB = 145000000;
-char vfoReceiver[] = "0";
-char vfoTransmitter[] = "0";
+//-
 
 void setTXState()
 {
   if(m_bTxState)
   {
       digitalWrite(LED_BUILTIN, HIGH);
+      digitalWrite(PTT_RELAY_PIN, HIGH);
   }
   else
   {
       digitalWrite(LED_BUILTIN, LOW);
+      digitalWrite(PTT_RELAY_PIN, LOW);
   }  
 }
 
@@ -25,7 +40,7 @@ void handleMsg()
 {
   if (m_nBufferPos < 2) return; // need at least 2 chars !
 
-  bool bReply = true;
+  bool bReply = true; // set to false to prevent reply msg
   
   sprintf(m_tmpBuf, "%c%c", tolower(m_buf[0]), tolower(m_buf[1]));
    
@@ -58,7 +73,7 @@ void handleMsg()
       m_lFrequencyA = strtol(freq, NULL, 10);
       if(errno == ERANGE) m_lFrequencyA = 145000000;
       
-      bReply=false;
+      bReply = false;
     }
     sprintf(m_tmpBuf, "FA%011lu;", m_lFrequencyA);
   }
@@ -73,7 +88,7 @@ void handleMsg()
       m_lFrequencyB = strtol(freq, NULL, 10);
       if(errno == ERANGE) m_lFrequencyB = 145000000;
       
-      bReply=false;
+      bReply = false;
     }
     sprintf(m_tmpBuf, "FB%011lu;", m_lFrequencyB);
   }
@@ -93,7 +108,7 @@ void handleMsg()
     char opMode[] = "4"; // fm
     char frft[] = "0"; // vfo a
     char scanStatus[] = "0";
-    char simplex[] = "0";
+    char simplexSplit[] = "0";
     char txtone[] = "0";
     char toneNumber[] = "00";
     char anotherSpace[] = "0"; // " ";
@@ -103,20 +118,20 @@ void handleMsg()
     if(m_bTxState)
     {
       sprintf(rxtx, "1");
-      sprintf(frft, "%s", vfoTransmitter);
+      sprintf(frft, "%s", m_vfoTransmitter);
     }
     else
     {
-      sprintf(frft, "%s", vfoReceiver);
+      sprintf(frft, "%s", m_vfoReceiver);
     }
 
-    if(strcmp(vfoTransmitter, vfoReceiver) != 0)
+    if(strcmp(m_vfoTransmitter, m_vfoReceiver) != 0)
     {
-      // split
-      sprintf(simplex, "1");  
+      // if vfos are different for both trans + rec, then assume split
+      sprintf(simplexSplit, "1");  
     }
     
-    sprintf(m_tmpBuf, "IF%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s;", hz, space, ritxit, ritOn, xitOn, memChanBankNo, memNumber, rxtx, opMode, frft, scanStatus, simplex, txtone, toneNumber, anotherSpace);
+    sprintf(m_tmpBuf, "IF%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s;", hz, space, ritxit, ritOn, xitOn, memChanBankNo, memNumber, rxtx, opMode, frft, scanStatus, simplexSplit, txtone, toneNumber, anotherSpace);
   }
   else if(strcmp(m_tmpBuf, "sm") == 0) // smeter
   {   
@@ -198,17 +213,17 @@ void handleMsg()
   {   
     if(m_nBufferPos == 3) {
       // we have a parameter
-      sprintf(vfoTransmitter, "%c", m_buf[2]);
+      sprintf(m_vfoTransmitter, "%c", m_buf[2]);
     }        
-    sprintf(m_tmpBuf, "FT%s;", vfoTransmitter);
+    sprintf(m_tmpBuf, "FT%s;", m_vfoTransmitter);
   } 
   else if(strcmp(m_tmpBuf, "fr") == 0) // vfo/mch mode of receiver
   {   
     if(m_nBufferPos == 3) {
       // we have a parameter
-      sprintf(vfoReceiver, "%c", m_buf[2]);
+      sprintf(m_vfoReceiver, "%c", m_buf[2]);
     }    
-    sprintf(m_tmpBuf, "FR%s;", vfoReceiver);
+    sprintf(m_tmpBuf, "FR%s;", m_vfoReceiver);
   }   
   else if(strcmp(m_tmpBuf, "sh") == 0) // dsp
   {   
@@ -359,6 +374,7 @@ void handleMsg()
 void setup() {
   // initialize digital pin LED_BUILTIN as an output.
   pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(PTT_RELAY_PIN, OUTPUT);
 
   setTXState();
   
