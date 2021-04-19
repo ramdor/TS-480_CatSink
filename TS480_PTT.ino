@@ -10,12 +10,14 @@
 //-
 #define PTT_RELAY_PIN 7
 //-
+#define TOT_SECONDS 240 // Time Out Timer of 4 mins // 0 to disable
 #define DEF_FREQ 145000000
 //-
 static char m_buf[256];
 static char m_tmpBuf[64];
 //-
 int m_nBufferPos = 0;
+unsigned long m_lStartMillis = 0;
 //-
 static char m_vfoReceiver[] = "0";
 static char m_vfoTransmitter[] = "0";
@@ -29,6 +31,7 @@ void setTXState()
 {
   if(m_bTxState)
   {
+      m_lStartMillis = millis();
       digitalWrite(LED_BUILTIN, HIGH);
       digitalWrite(PTT_RELAY_PIN, HIGH);
   }
@@ -379,6 +382,7 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(PTT_RELAY_PIN, OUTPUT);
 
+  m_bTxState = false;
   setTXState();
   
   Serial.begin(19200, SERIAL_8N1);
@@ -390,7 +394,7 @@ void setup() {
   
 // the loop function runs over and over again forever
 void loop() {
-  int incByte = 0;
+  int incByte;
   
   while (Serial.available() > 0)
   {
@@ -422,5 +426,19 @@ void loop() {
         m_nBufferPos = 0;
       }
     }    
+  }
+
+  // ToT check
+  if((TOT_SECONDS > 0) && m_bTxState)
+  {
+    unsigned long lNow = millis();
+    unsigned long lElapsed = lNow - m_lStartMillis;
+    unsigned long lDuration = TOT_SECONDS * 1000ul;
+    
+    if( lElapsed >= lDuration )
+    {
+      m_bTxState = false;
+      setTXState();
+    }
   }
 }
